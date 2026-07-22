@@ -1,12 +1,16 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+from collections.abc import Hashable, Mapping
+
+from pandas._typing import DtypeArg
+
 import click
 import pandas as pd
 from sqlalchemy import create_engine
 from tqdm.auto import tqdm
 
-dtype = {
+dtype: Mapping[Hashable, DtypeArg] = {
     "VendorID": "Int64",
     "passenger_count": "Int64",
     "trip_distance": "float64",
@@ -22,7 +26,7 @@ dtype = {
     "tolls_amount": "float64",
     "improvement_surcharge": "float64",
     "total_amount": "float64",
-    "congestion_surcharge": "float64"
+    "congestion_surcharge": "float64",
 }
 
 parse_dates = [
