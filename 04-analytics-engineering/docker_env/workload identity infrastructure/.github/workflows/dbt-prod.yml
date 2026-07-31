@@ -1,0 +1,38 @@
+name: dbt Production Run
+
+on:
+  push:
+    branches:
+      - main  # branch to trigger the workflow on push
+  workflow_dispatch: # Allows manual triggering from the GitHub interface
+
+permissions:
+  contents: read
+  id-token: write # REQUIRED for Workload Identity OIDC
+
+jobs:
+  dbt-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Authentication in GCP without JSON keys
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          # Replace the values below with your data from Step 1
+          workload_identity_provider: 'projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: '${{ env.SERVICE_ACCOUNT }}@${{ env.PROJECT_ID }}.iam.gserviceaccount.com'
+          create_credentials_file: true # Generates a local ADC file
+
+      # Running dbt inside the Docker container
+      - name: Run dbt in Docker
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/usr/app \
+            -v ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}:/tmp/gcp/creds.json \
+            -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp/creds.json \
+            -e DBT_PROFILES_DIR=/usr/app/.github/dbt \
+            xemuliam/dbt:1.11.11-bigquery1.11.2 dbt run --target prod

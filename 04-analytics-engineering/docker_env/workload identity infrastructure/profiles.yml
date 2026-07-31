@@ -1,0 +1,10 @@
+taxi_rides_ny:
+  target: prod
+  outputs:
+    prod:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('PROJECT_ID') }}"
+      dataset: "{{ env_var('DATASET') }}"
+      threads: 4
+      timeout_seconds: 300

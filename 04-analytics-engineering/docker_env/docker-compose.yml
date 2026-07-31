@@ -1,0 +1,25 @@
+services:
+  dbt:
+    image: xemuliam/dbt:1.11.11-bigquery1.11.2
+    volumes:
+      # mount existing dbt project into the container
+      - ../taxi_rides_ny:/usr/app/taxi_rides_ny
+      # run "gcloud auth application-default login" to generate the ADC file
+      # mount ADC file from host's home directory into the container (Windows version)
+      - ${APPDATA}/gcloud/application_default_credentials.json:/tmp/gcp/creds.json:ro
+      # mount ADC file from host's home directory into the container (Linux/Mac version)
+      # - ~/.config/gcloud/application_default_credentials.json:/tmp/gcp/creds.json
+      # mount profiles.yml from the docker_env directory into the container
+      - ./profiles.yml:/usr/app/profiles.yml:ro
+    environment:
+      # annotate the ADC file location for dbt to use
+      - GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp/creds.json
+      # annotate the profiles directory location for dbt to use
+      - DBT_PROFILES_DIR=/usr/app
+      - DBT_TARGET=dev
+      - DBT_PROJECT_DIR=/usr/app/taxi_rides_ny
+      - PROJECT_ID
+      - DATASET
+    working_dir: /usr/app/taxi_rides_ny
+    # leave the container running (for development)
+    entrypoint: ["tail", "-f", "/dev/null"] 

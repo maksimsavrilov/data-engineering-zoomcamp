@@ -1,0 +1,9 @@
+taxi_rides_ny:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('PROJECT_ID') }}"
+      dataset: "{{ env_var('DATASET') }}"
+      threads: 4
