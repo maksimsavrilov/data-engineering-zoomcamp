@@ -18,3 +18,5 @@ serving_dir
 *.csv
 *.duckdb
 local-plugins/
+.bruin.yml
+*.db

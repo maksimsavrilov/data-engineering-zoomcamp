@@ -1,0 +1,14 @@
+services:
+  app:
+    build:
+      dockerfile: Dockerfile
+      target: bruin
+    pull_policy: missing
+    volumes:
+      - ./sandbox:/workspace:Z
+    working_dir: /workspace
+    command: tail -f /dev/null
+    user: "1000:1000"
+    userns_mode: "keep-id" 
+    ports:
+      - "127.0.0.1:2222:22"
