@@ -1,5 +1,116 @@
 ## Running Spark in the Cloud
 
+
+### Enable access to internal google resources 
+```
+gcloud compute networks subnets update default \
+--region=REGION_NAME \
+--enable-private-ip-google-access
+```
+
+### Role reguired for VM service account to process tasks in Claster
+```
+gcloud projects get-iam-policy PROJECT_NAME \
+--flatten="bindings[].members" \
+--format='table(bindings.role)' \
+--filter="bindings.members:767007221215-compute@developer.gserviceaccount.com"
+```
+
+```
+# ROLE
+# roles/dataproc.worker
+```
+
+### Role required to Dataproc service account
+```
+gcloud projects get-iam-policy PROJECT_NAME \
+--flatten="bindings[].members" \
+--filter="bindings.members:service-767007221215@dataproc-accounts.iam.gserviceaccount.com" \
+--format="table(bindings.role)"
+```
+
+```
+# ROLE
+# roles/dataproc.serviceAgent
+```
+
+### Services to be enabled
+```
+gcloud services list \
+--enabled \
+--project=PROJECT_NAME \
+--filter="name:cloudresourcemanager.googleapis.com"
+```
+
+```
+# NAME                                 TITLE
+# cloudresourcemanager.googleapis.com  Cloud Resource Manager API
+```
+
+### if not - enable
+```
+gcloud services enable cloudresourcemanager.googleapis.com   --project=PROJECT_NAME
+```
+
+### Just in case check service account is binded to you
+```
+gcloud iam service-accounts get-iam-policy \
+767007221215-compute@developer.gserviceaccount.com \
+--project=PROJECT_NAME
+```
+
+```
+# bindings:
+# - members:
+#   - user:Maxim.Savrilov@gmail.com
+#   role: roles/iam.serviceAccountUser
+# etag: BwZY-93Q9Zo=
+# version: 1
+```
+
+```
+gcloud iam service-accounts add-iam-policy-binding \
+767007221215-compute@developer.gserviceaccount.com \
+--member="user:maxim.savrilov@gmail.com" \
+--role="roles/iam.serviceAccountUser" \
+--project=PROJECT_NAME
+```
+
+# Then create your cluster, the single node as example (optional component DOCKER fails to install for now)
+```
+gcloud dataproc clusters create cluster-working \
+--enable-component-gateway \
+--region=europe-west4 \
+--subnet=default \
+--no-address \
+--single-node \
+--master-machine-type=e2-standard-4 \
+--master-boot-disk-type=pd-balanced \
+--master-boot-disk-size=100 \
+--image-version=2.3-debian12 \
+--optional-components=ICEBERG,DELTA,JUPYTER \
+--scopes='https://www.googleapis.com/auth/cloud-platform' \
+--project=PROJECT_NAME \
+--async
+```
+
+# For Docker it is required to create NAT router
+```
+gcloud compute routers create dataproc-router \
+  --network=default \
+  --region=europe-west4 \
+  --project=PROJECT_NAME
+gcloud compute routers nats create dataproc-nat \
+  --router=dataproc-router \
+  --region=europe-west4 \
+  --nat-all-subnet-ip-ranges \
+  --auto-allocate-nat-external-ips \
+  --project=PROJECT_NAME
+  ```
+
+**Then use "cloud dataproc jobs submit pyspark" to send jobs to your claster**
+
+
 ### Connecting to Google Cloud Storage 
 
 Uploading data to GCS:
