@@ -1,81 +1,94 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from collections.abc import Hashable, Mapping
-
-from pandas._typing import DtypeArg
-
-import click
 import pandas as pd
+import click
 from sqlalchemy import create_engine
 from tqdm.auto import tqdm
 
-dtype: Mapping[Hashable, DtypeArg] = {
-    "VendorID": "Int64",
-    "passenger_count": "Int64",
-    "trip_distance": "float64",
-    "RatecodeID": "Int64",
-    "store_and_fwd_flag": "string",
-    "PULocationID": "Int64",
-    "DOLocationID": "Int64",
-    "payment_type": "Int64",
-    "fare_amount": "float64",
-    "extra": "float64",
-    "mta_tax": "float64",
-    "tip_amount": "float64",
-    "tolls_amount": "float64",
-    "improvement_surcharge": "float64",
-    "total_amount": "float64",
-    "congestion_surcharge": "float64",
+
+dtype = {
+    "VendorID": pd.Int64Dtype(),
+    "passenger_count": pd.Int64Dtype(),
+    "trip_distance": pd.Float64Dtype(),
+    "RatecodeID": pd.Int64Dtype(),
+    "store_and_fwd_flag": pd.StringDtype(),
+    "PULocationID": pd.Int64Dtype(),
+    "DOLocationID": pd.Int64Dtype(),
+    "payment_type": pd.Int64Dtype(),
+    "trip_type": pd.Int64Dtype(),
+    "fare_amount": pd.Float64Dtype(),
+    "extra": pd.Float64Dtype(),
+    "mta_tax": pd.Float64Dtype(),
+    "tip_amount": pd.Float64Dtype(),
+    "tolls_amount": pd.Float64Dtype(),
+    "ehail_fee": pd.Float64Dtype(),
+    "improvement_surcharge": pd.Float64Dtype(),
+    "total_amount": pd.Float64Dtype(),
+    "congestion_surcharge": pd.Float64Dtype(),
 }
 
 parse_dates = [
-    "tpep_pickup_datetime",
-    "tpep_dropoff_datetime"
+    "lpep_pickup_datetime",
+    "lpep_dropoff_datetime",
 ]
 
 
 @click.command()
-@click.option('--pg-user', default='root', help='PostgreSQL user')
-@click.option('--pg-pass', default='root', help='PostgreSQL password')
-@click.option('--pg-host', default='localhost', help='PostgreSQL host')
-@click.option('--pg-port', default=5432, type=int, help='PostgreSQL port')
+@click.option('--pg-user', default='postgres', help='PostgreSQL user')
+@click.option('--pg-pass', default='postgres', help='PostgreSQL password')
+@click.option('--pg-host', default='db', help='PostgreSQL host')
+@click.option('--pg-port', default=5433, type=int, help='PostgreSQL port')
 @click.option('--pg-db', default='ny_taxi', help='PostgreSQL database name')
 @click.option('--year', default=2021, type=int, help='Year of the data')
 @click.option('--month', default=1, type=int, help='Month of the data')
-@click.option('--target-table', default='yellow_taxi_data', help='Target table name')
-@click.option('--chunksize', default=100000, type=int, help='Chunk size for reading CSV')
+@click.option('--target-table', default='green_taxi_data', help='Target table name')
+@click.option('--chunksize', default=100000, type=int, help='Chunk size for inserting rows into Postgres')
 def run(pg_user, pg_pass, pg_host, pg_port, pg_db, year, month, target_table, chunksize):
-    """Ingest NYC taxi data into PostgreSQL database."""
-    prefix = 'https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow'
-    url = f'{prefix}/yellow_tripdata_{year}-{month:02d}.csv.gz'
+    """Ingest a parquet NYC taxi dataset into PostgreSQL."""
+    prefix = 'https://d37ci6vzurychx.cloudfront.net/trip-data'
+    url = f'{prefix}/green_tripdata_{year}-{month:02d}.parquet'
 
-    engine = create_engine(f'postgresql+psycopg://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}')
-
-    df_iter = pd.read_csv(
-        url,
-        dtype=dtype,
-        parse_dates=parse_dates,
-        iterator=True,
-        chunksize=chunksize,
+    engine = create_engine(
+        f'postgresql+psycopg://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}'
     )
 
-    first = True
+    df = pd.read_parquet(url)
 
-    for df_chunk in tqdm(df_iter):
-        if first:
-            df_chunk.head(0).to_sql(
-                name=target_table,
-                con=engine,
-                if_exists='replace'
-            )
-            first = False
+    for column in dtype:
+        if column in df.columns:
+            df[column] = df[column].astype(dtype[column])
 
-        df_chunk.to_sql(
+    for column in parse_dates:
+        if column in df.columns:
+            df[column] = pd.to_datetime(df[column])
+
+    df.head(0).to_sql(
+        name=target_table,
+        con=engine,
+        if_exists='replace',
+        index=False,
+    )
+
+    for start in tqdm(range(0, len(df), chunksize), desc='Inserting rows'):
+        chunk = df.iloc[start:start + chunksize].copy()
+        chunk.to_sql(
             name=target_table,
             con=engine,
-            if_exists='append'
+            if_exists='append',
+            index=False,
         )
+
+    url = "https://github.com/DataTalksClub/nyc-tlc-data/releases/download/misc/taxi_zone_lookup.csv"
+    zone_df = pd.read_csv(url)
+
+    zone_df.to_sql(
+        name="zones",
+        con=engine,
+        if_exists='replace',
+        index=False,
+    )
+
 
 if __name__ == '__main__':
     run()

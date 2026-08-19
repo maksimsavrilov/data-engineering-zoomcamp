@@ -1,6 +1,8 @@
 services:
   dbt:
     image: xemuliam/dbt:1.11.11-bigquery1.11.2
+    ports:
+    - "8081:8081"
     volumes:
       # mount existing dbt project into the container
       - ../taxi_rides_ny:/usr/app/taxi_rides_ny
